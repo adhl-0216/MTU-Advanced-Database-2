@@ -1,0 +1,75 @@
+type Actor @node {
+  actedInMovies: [Movie!]! @relationship(type: "ACTED_IN", direction: OUT)
+  actor_id: String!
+  name: String!
+  degreeOfSeparationWith(targetActorName: String!): SeparationDetails
+    @cypher(
+      statement: """
+        MATCH p = shortestPath(
+          (this)-[:ACTED_IN*..10]-(target:Actor {name: $targetActorName})
+        )
+        RETURN {
+          path: [node IN nodes(p) | CASE 
+            WHEN 'Actor' IN labels(node) THEN node.name 
+            ELSE node.title 
+          END],
+          degreeOfSeparation: length(p) / 2
+        } AS separationDetails
+      """,
+      columnName: "separationDetails"
+    )
+}
+
+type SeparationDetails {
+  path: [String!]!
+  degreeOfSeparation: Float!
+}
+
+type Genre @node {
+  moviesHasGenre: [Movie!]!
+    @relationship(
+      type: "HAS_GENRE"
+      direction: IN
+      properties: "HasGenreProperties"
+    )
+  name: String!
+  position: String!
+}
+
+type HasGenreProperties @relationshipProperties {
+  scale: BigInt!
+}
+
+type LikesProperties @relationshipProperties {
+  rating: BigInt!
+}
+
+type Movie @node {
+  actorsActedIn: [Actor!]! @relationship(type: "ACTED_IN", direction: IN)
+  hasGenreGenres: [Genre!]!
+    @relationship(
+      type: "HAS_GENRE"
+      direction: OUT
+      properties: "HasGenreProperties"
+    )
+  movie_id: String!
+  peopleLikes: [Person!]!
+    @relationship(type: "LIKES", direction: IN, properties: "LikesProperties")
+  title: String!
+}
+
+type Person @node {
+  name: String!
+  likesMovies: [Movie!]!
+    @relationship(type: "LIKES", direction: OUT, properties: "LikesProperties")
+  friendsWithPeople: [Person!]!
+    @relationship(type: "FRIENDS_WITH", direction: OUT)
+  friendCount: Int!
+    @cypher(
+      statement: """
+        MATCH (this)-[:FRIENDS_WITH]-(:Person)
+        RETURN count(*) AS friendCount
+      """,
+      columnName: "friendCount"
+    )
+}
